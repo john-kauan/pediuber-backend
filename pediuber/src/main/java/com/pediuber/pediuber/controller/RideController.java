@@ -34,4 +34,12 @@ public class RideController {
             );
         }
 
+        @PatchMapping("/{rideId}/match/{driverId}")
+         public Ride matchDriver(
+            @PathVariable Long rideId,
+            @PathVariable Long driverId
+         ) {
+        return rideService.matchDriver(rideId, driverId);
+        }
+
 }

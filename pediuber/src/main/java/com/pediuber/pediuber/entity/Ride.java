@@ -27,7 +27,9 @@ public class Ride {
 
     private Long passengerId;
 
-    private Long driverId;
+    @ManyToOne
+    @JoinColumn(name = "driver_id")
+    private Driver driver;
 
     @Enumerated(EnumType.STRING)
     private RideStatus status;

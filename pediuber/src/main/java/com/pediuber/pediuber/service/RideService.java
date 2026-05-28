@@ -2,8 +2,10 @@ package com.pediuber.pediuber.service;
 
 
 import com.pediuber.pediuber.dto.CreateRideRequest;
+import com.pediuber.pediuber.entity.Driver;
 import com.pediuber.pediuber.entity.Ride;
 import com.pediuber.pediuber.enums.RideStatus;
+import com.pediuber.pediuber.repository.DriverRepository;
 import com.pediuber.pediuber.repository.RideRepository;
 import org.springframework.stereotype.Service;
 
@@ -11,9 +13,14 @@ import org.springframework.stereotype.Service;
 public class RideService {
 
     private final RideRepository rideRepository;
+    private final DriverRepository driverRepository;
 
-    public RideService(RideRepository rideRepository) {
+    public RideService(
+            RideRepository rideRepository,
+            DriverRepository driverRepository
+    ) {
         this.rideRepository = rideRepository;
+        this.driverRepository = driverRepository;
     }
 
     public Ride createRide(CreateRideRequest request) {
@@ -39,16 +46,31 @@ public class RideService {
         return rideRepository.save(ride);
     }
 
-    private void validateStatusTransition(
+    public Ride matchDriver(Long rideId, Long driverId) {
 
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new RuntimeException("Ride not found"));
+
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new RuntimeException("Driver not found"));
+
+        if (!driver.getAvailable()) {
+            throw new RuntimeException("Driver unavailable");
+        }
+
+        ride.setDriver(driver);
+
+        ride.setStatus(RideStatus.MATCHED);
+
+        driver.setAvailable(false);
+
+        return rideRepository.save(ride);
+    }
+
+    private void validateStatusTransition(
             RideStatus currentStatus,
             RideStatus newStatus
-
-
     ) {
-
-        System.out.println("CURRENT: " + currentStatus);
-        System.out.println("NEW: " + newStatus);
 
         switch (currentStatus) {
 

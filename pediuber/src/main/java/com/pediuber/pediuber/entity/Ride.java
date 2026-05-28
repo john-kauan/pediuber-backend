@@ -11,7 +11,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "redis")
+@Table(name = "rides")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,14 +25,19 @@ public class Ride {
 
     private String destination;
 
+    private Long passengerId;
+
+    private Long driverId;
+
     @Enumerated(EnumType.STRING)
     private RideStatus status;
 
     private LocalDateTime createdAt;
 
-    public Ride(String origin, String destination) {
+    public Ride(String origin, String destination, Long passengerId) {
         this.origin = origin;
         this.destination = destination;
+        this.passengerId = passengerId;
         this.status = RideStatus.REQUESTED;
         this.createdAt = LocalDateTime.now();
     }

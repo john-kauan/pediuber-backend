@@ -16,11 +16,11 @@ public class RideController {
             this.rideService = rideService;
         }
 
-        @PostMapping
-        public Ride createRide(
-                @RequestBody CreateRideRequest request
-        ) {
-            return rideService.createRide(request);
+        @PostMapping("/passenger/{passengerId}")
+        public Ride createRide(@PathVariable Long passengerId,
+                           @RequestBody Ride ride) {
+
+        return rideService.createRide(passengerId, ride);
         }
 
         @PatchMapping("/{rideId}/status")

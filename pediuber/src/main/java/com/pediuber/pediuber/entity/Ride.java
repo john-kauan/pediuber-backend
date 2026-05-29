@@ -3,7 +3,6 @@ package com.pediuber.pediuber.entity;
 
 import com.pediuber.pediuber.enums.RideStatus;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -25,21 +24,23 @@ public class Ride {
 
     private String destination;
 
-    private Long passengerId;
-
     @ManyToOne
     @JoinColumn(name = "driver_id")
     private Driver driver;
+
+    @ManyToOne
+    @JoinColumn(name = "passenger_id")
+    private Passenger passenger;
 
     @Enumerated(EnumType.STRING)
     private RideStatus status;
 
     private LocalDateTime createdAt;
 
-    public Ride(String origin, String destination, Long passengerId) {
+    public Ride(String origin, String destination, Passenger passenger) {
         this.origin = origin;
         this.destination = destination;
-        this.passengerId = passengerId;
+        this.passenger = passenger;
         this.status = RideStatus.REQUESTED;
         this.createdAt = LocalDateTime.now();
     }

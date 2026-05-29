@@ -6,6 +6,7 @@ import com.pediuber.pediuber.entity.Driver;
 import com.pediuber.pediuber.entity.Passenger;
 import com.pediuber.pediuber.entity.Ride;
 import com.pediuber.pediuber.enums.RideStatus;
+import com.pediuber.pediuber.pool.PendingRidePool;
 import com.pediuber.pediuber.repository.DriverRepository;
 import com.pediuber.pediuber.repository.PassengerRepository;
 import com.pediuber.pediuber.repository.RideRepository;
@@ -19,15 +20,18 @@ public class RideService {
     private final RideRepository rideRepository;
     private final DriverRepository driverRepository;
     private final PassengerRepository passengerRepository;
+    private final PendingRidePool pendingRidePool;
 
     public RideService(
             RideRepository rideRepository,
             DriverRepository driverRepository,
-            PassengerRepository passengerRepository
+            PassengerRepository passengerRepository,
+            PendingRidePool pendingRidePool
     ) {
         this.rideRepository = rideRepository;
         this.driverRepository = driverRepository;
         this.passengerRepository = passengerRepository;
+        this.pendingRidePool = pendingRidePool;
     }
 
     public Ride createRide(Long passengerId, Ride ride) {
@@ -39,7 +43,11 @@ public class RideService {
         ride.setStatus(RideStatus.REQUESTED);
         ride.setCreatedAt(LocalDateTime.now());
 
-        return rideRepository.save(ride);
+        Ride savedRide = rideRepository.save(ride);
+
+        pendingRidePool.addRide(savedRide);
+
+        return savedRide;
     }
 
     public Ride updateRideStatus(Long rideId, RideStatus newStatus) {

@@ -3,6 +3,7 @@ package com.pediuber.pediuber.controller;
 import com.pediuber.pediuber.dto.CreateRideRequest;
 import com.pediuber.pediuber.dto.UpdateRideStatusRequest;
 import com.pediuber.pediuber.entity.Ride;
+import com.pediuber.pediuber.pool.PendingRidePool;
 import com.pediuber.pediuber.service.RideService;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,9 +12,12 @@ import org.springframework.web.bind.annotation.*;
 public class RideController {
 
         private final RideService rideService;
+        private final PendingRidePool pendingRidePool;
 
-        public RideController(RideService rideService) {
+        public RideController(RideService rideService, PendingRidePool pendingRidePool) {
+
             this.rideService = rideService;
+            this.pendingRidePool = pendingRidePool;
         }
 
         @PostMapping("/passenger/{passengerId}")
@@ -40,6 +44,11 @@ public class RideController {
             @PathVariable Long driverId
          ) {
         return rideService.matchDriver(rideId, driverId);
+        }
+
+        @GetMapping("/pool/size")
+        public int getPoolSize() {
+            return pendingRidePool.size();
         }
 
 }

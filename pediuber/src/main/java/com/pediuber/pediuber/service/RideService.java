@@ -102,6 +102,19 @@ public class RideService {
                 .orElseThrow(() -> new RuntimeException("Driver not found"));
 
         if (!driver.getAvailable()) {
+
+            loggingService.warn(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "DRIVER_UNAVAILABLE",
+                            ride.getId(),
+                            "PediUber",
+                            ride.getStatus().name(),
+                            ride.getStatus().name(),
+                            null
+                    )
+            );
+
             throw new RuntimeException("Driver unavailable");
         }
 

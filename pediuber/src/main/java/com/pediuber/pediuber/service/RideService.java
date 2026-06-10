@@ -6,11 +6,13 @@ import com.pediuber.pediuber.entity.Driver;
 import com.pediuber.pediuber.entity.Passenger;
 import com.pediuber.pediuber.entity.Ride;
 import com.pediuber.pediuber.enums.RideStatus;
+import com.pediuber.pediuber.logging.LogEvent;
 import com.pediuber.pediuber.pool.PendingRidePool;
 import com.pediuber.pediuber.repository.DriverRepository;
 import com.pediuber.pediuber.repository.PassengerRepository;
 import com.pediuber.pediuber.repository.RideRepository;
 import org.springframework.stereotype.Service;
+import com.pediuber.pediuber.logging.LoggingService;
 
 import java.time.LocalDateTime;
 
@@ -21,17 +23,20 @@ public class RideService {
     private final DriverRepository driverRepository;
     private final PassengerRepository passengerRepository;
     private final PendingRidePool pendingRidePool;
+    private final LoggingService loggingService;
 
     public RideService(
             RideRepository rideRepository,
             DriverRepository driverRepository,
             PassengerRepository passengerRepository,
-            PendingRidePool pendingRidePool
+            PendingRidePool pendingRidePool,
+            LoggingService loggingService
     ) {
         this.rideRepository = rideRepository;
         this.driverRepository = driverRepository;
         this.passengerRepository = passengerRepository;
         this.pendingRidePool = pendingRidePool;
+        this.loggingService = loggingService;
     }
 
     public Ride createRide(Long passengerId, Ride ride) {
@@ -45,6 +50,18 @@ public class RideService {
 
         Ride savedRide = rideRepository.save(ride);
 
+        loggingService.info(
+                new LogEvent(
+                        LocalDateTime.now().toString(),
+                        "RIDE_CREATED",
+                        savedRide.getId(),
+                        "PediUber",
+                        null,
+                        RideStatus.REQUESTED.name(),
+                        null
+                )
+        );
+
         pendingRidePool.addRide(savedRide);
 
         return savedRide;
@@ -57,7 +74,21 @@ public class RideService {
 
         validateStatusTransition(ride.getStatus(), newStatus);
 
+        RideStatus previousStatus = ride.getStatus();
+
         ride.setStatus(newStatus);
+
+        loggingService.info(
+                new LogEvent(
+                        LocalDateTime.now().toString(),
+                        "RIDE_STATUS_UPDATED",
+                        ride.getId(),
+                        "PediUber",
+                        previousStatus.name(),
+                        newStatus.name(),
+                        null
+                )
+        );
 
         return rideRepository.save(ride);
     }
@@ -79,6 +110,18 @@ public class RideService {
         ride.setStatus(RideStatus.MATCHED);
 
         driver.setAvailable(false);
+
+        loggingService.info(
+                new LogEvent(
+                        LocalDateTime.now().toString(),
+                        "RIDE_MATCHED",
+                        ride.getId(),
+                        "PediUber",
+                        RideStatus.REQUESTED.name(),
+                        RideStatus.MATCHED.name(),
+                        null
+                )
+        );
 
         return rideRepository.save(ride);
     }

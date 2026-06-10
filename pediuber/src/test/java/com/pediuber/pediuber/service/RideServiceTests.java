@@ -2,6 +2,7 @@ package com.pediuber.pediuber.service;
 
 import com.pediuber.pediuber.entity.Ride;
 import com.pediuber.pediuber.enums.RideStatus;
+import com.pediuber.pediuber.logging.LoggingService;
 import com.pediuber.pediuber.pool.PendingRidePool;
 import com.pediuber.pediuber.repository.DriverRepository;
 import com.pediuber.pediuber.repository.PassengerRepository;
@@ -16,7 +17,7 @@ public class RideServiceTests {
     private DriverRepository driverRepository;
     private PassengerRepository passengerRepository;
     private PendingRidePool pendingRidePool;
-
+    private LoggingService loggingService;
     private RideService rideService;
 
     @BeforeEach
@@ -30,11 +31,14 @@ public class RideServiceTests {
 
         pendingRidePool = Mockito.mock(PendingRidePool.class);
 
+        loggingService = Mockito.mock(LoggingService.class);
+
         rideService = new RideService(
                 rideRepository,
                 driverRepository,
                 passengerRepository,
-                pendingRidePool
+                pendingRidePool,
+                loggingService
         );
     }
 

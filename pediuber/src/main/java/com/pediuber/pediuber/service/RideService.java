@@ -96,10 +96,40 @@ public class RideService {
     public Ride matchDriver(Long rideId, Long driverId) {
 
         Ride ride = rideRepository.findById(rideId)
-                .orElseThrow(() -> new RuntimeException("Ride not found"));
+                .orElseThrow(() -> {
+
+                    loggingService.error(
+                            new LogEvent(
+                                    LocalDateTime.now().toString(),
+                                    "RIDE_NOT_FOUND",
+                                    rideId,
+                                    "PediUber",
+                                    null,
+                                    null,
+                                    null
+                            )
+                    );
+
+                    return new RuntimeException("Ride not found");
+                });
 
         Driver driver = driverRepository.findById(driverId)
-                .orElseThrow(() -> new RuntimeException("Driver not found"));
+                .orElseThrow(() -> {
+
+                    loggingService.error(
+                            new LogEvent(
+                                    LocalDateTime.now().toString(),
+                                    "DRIVER_NOT_FOUND",
+                                    rideId,
+                                    "PediUber",
+                                    null,
+                                    null,
+                                    null
+                            )
+                    );
+
+                    return new RuntimeException("Driver not found");
+                });
 
         if (!driver.getAvailable()) {
 

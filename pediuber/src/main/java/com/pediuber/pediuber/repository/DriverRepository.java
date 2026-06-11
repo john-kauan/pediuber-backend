@@ -10,4 +10,5 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     List<Driver> findByAvailableTrue();
 
     boolean existsByAvailableTrue();
+    long countByAvailableTrue();
 }

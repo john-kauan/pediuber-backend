@@ -1,0 +1,21 @@
+package com.pediuber.pediuber.health;
+
+import com.pediuber.pediuber.dto.HealthResponse;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class HealthController {
+
+    private final HealthService healthService;
+
+    public HealthController(HealthService healthService) {
+        this.healthService = healthService;
+    }
+
+    @GetMapping("/health")
+    public HealthResponse getHealth() {
+        return healthService.getHealth();
+    }
+
+}

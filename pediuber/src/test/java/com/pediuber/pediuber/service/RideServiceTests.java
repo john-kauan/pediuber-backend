@@ -13,6 +13,7 @@ import com.pediuber.pediuber.repository.PassengerRepository;
 import com.pediuber.pediuber.repository.RideRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 
@@ -176,7 +177,21 @@ public class RideServiceTests {
         assertEquals(RideStatus.REQUESTED, result.getStatus());
 
         verify(rideRepository).save(any(Ride.class));
-        verify(rideProducer).sendRideToOutputQueue(any(RideQueueMessage.class));
+
+        ArgumentCaptor<RideQueueMessage> messageCaptor =
+                ArgumentCaptor.forClass(RideQueueMessage.class);
+
+        verify(rideProducer).sendRideToOutputQueue(messageCaptor.capture());
+
+        RideQueueMessage capturedMessage = messageCaptor.getValue();
+
+        assertEquals(10L, capturedMessage.getRideId());
+        assertEquals("UFV", capturedMessage.getOrigin());
+        assertEquals("Centro", capturedMessage.getDestination());
+        assertEquals(1L, capturedMessage.getPassengerId());
+        assertEquals(RideStatus.REQUESTED.name(), capturedMessage.getStatus());
+        assertEquals(0, capturedMessage.getAttempts());
+
         verify(pendingRidePool, never()).addRide(any(Ride.class));
     }
 

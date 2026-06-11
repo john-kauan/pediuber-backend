@@ -1,9 +1,11 @@
 package com.pediuber.pediuber.controller;
 
 import com.pediuber.pediuber.dto.CreateRideRequest;
+import com.pediuber.pediuber.dto.RideQueueMessage;
 import com.pediuber.pediuber.dto.UpdateRideStatusRequest;
 import com.pediuber.pediuber.entity.Ride;
 import com.pediuber.pediuber.pool.PendingRidePool;
+import com.pediuber.pediuber.rabbitmq.RideProducer;
 import com.pediuber.pediuber.service.RideService;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,11 +15,13 @@ public class RideController {
 
         private final RideService rideService;
         private final PendingRidePool pendingRidePool;
+        private final RideProducer rideProducer;
 
-        public RideController(RideService rideService, PendingRidePool pendingRidePool) {
+        public RideController(RideService rideService, PendingRidePool pendingRidePool, RideProducer rideProducer) {
 
             this.rideService = rideService;
             this.pendingRidePool = pendingRidePool;
+            this.rideProducer = rideProducer;
         }
 
         @PostMapping("/passenger/{passengerId}")
@@ -50,5 +54,6 @@ public class RideController {
         public int getPoolSize() {
             return pendingRidePool.size();
         }
+
 
 }

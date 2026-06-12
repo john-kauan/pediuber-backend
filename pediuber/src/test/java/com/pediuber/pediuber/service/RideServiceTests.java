@@ -1,7 +1,6 @@
 package com.pediuber.pediuber.service;
 
 import com.pediuber.pediuber.core.dto.RideAccepted;
-import com.pediuber.pediuber.dto.RideQueueMessage;
 import com.pediuber.pediuber.entity.Passenger;
 import com.pediuber.pediuber.entity.Ride;
 import com.pediuber.pediuber.enums.RideStatus;
@@ -14,7 +13,6 @@ import com.pediuber.pediuber.repository.PassengerRepository;
 import com.pediuber.pediuber.repository.RideRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import com.pediuber.pediuber.core.service.CoreDelegationService;
 
@@ -149,7 +147,7 @@ public class RideServiceTests {
     }
 
     @Test
-    void shouldSendRideToOutputQueueWhenOverloaded() {
+    void shouldDelegateRideToCoreWhenOverloaded() {
 
         Long passengerId = 1L;
 
@@ -168,6 +166,12 @@ public class RideServiceTests {
         savedRide.setStatus(RideStatus.REQUESTED);
         savedRide.setCreatedAt(LocalDateTime.now());
 
+        RideAccepted rideAccepted = new RideAccepted(
+                "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                10L,
+                "Corrida aceita pelo Core"
+        );
+
         when(passengerRepository.findById(passengerId))
                 .thenReturn(Optional.of(passenger));
 
@@ -177,37 +181,22 @@ public class RideServiceTests {
         when(overflowPolicyService.isOverloaded())
                 .thenReturn(true);
 
+        when(coreDelegationService.delegateRide(savedRide))
+                .thenReturn(rideAccepted);
+
         Ride result = rideService.createRide(passengerId, ride);
 
         assertEquals(RideStatus.REQUESTED, result.getStatus());
+        assertEquals("f47ac10b-58cc-4372-a567-0e02b2c3d479", result.getCoreRideUuid());
+        assertEquals(10L, result.getLogicalTimestamp());
 
-        verify(rideRepository).save(any(Ride.class));
-
-        ArgumentCaptor<RideQueueMessage> messageCaptor =
-                ArgumentCaptor.forClass(RideQueueMessage.class);
-
-        verify(rideProducer).sendRideToOutputQueue(messageCaptor.capture());
-
-        RideQueueMessage capturedMessage = messageCaptor.getValue();
-
-        assertEquals(10L, capturedMessage.getRideId());
-        assertEquals("UFV", capturedMessage.getOrigin());
-        assertEquals("Centro", capturedMessage.getDestination());
-        assertEquals(1L, capturedMessage.getPassengerId());
-        assertEquals(RideStatus.REQUESTED.name(), capturedMessage.getStatus());
-        assertEquals(0, capturedMessage.getAttempts());
-
-        verify(pendingRidePool, never()).addRide(any(Ride.class));
+        verify(rideRepository, times(2)).save(any(Ride.class));
 
         verify(coreDelegationService).delegateRide(savedRide);
-        verify(pendingRidePool, never()).addRide(any(Ride.class));
 
-        when(coreDelegationService.delegateRide(savedRide))
-                .thenReturn(new RideAccepted(
-                        "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-                        10L,
-                        "Corrida aceita pelo Core"
-                ));
+        verify(rideProducer, never()).sendRideToOutputQueue(any());
+
+        verify(pendingRidePool, never()).addRide(any(Ride.class));
     }
 
 }

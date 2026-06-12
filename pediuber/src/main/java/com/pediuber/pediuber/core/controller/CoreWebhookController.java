@@ -128,6 +128,8 @@ public class CoreWebhookController {
                 )
         );
 
+        savedRide = assignAvailableDriverIfPossible(savedRide);
+
         try {
 
             long confirmTimestamp = lamportClockService.tick();

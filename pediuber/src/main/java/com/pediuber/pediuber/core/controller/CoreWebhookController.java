@@ -14,6 +14,10 @@ import com.pediuber.pediuber.pool.PendingRidePool;
 import com.pediuber.pediuber.repository.RideRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.pediuber.pediuber.core.client.CoreClient;
+import com.pediuber.pediuber.core.dto.RideStatusUpdateRequest;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.client.RestClientException;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -27,19 +31,25 @@ public class CoreWebhookController {
     private final RideRepository rideRepository;
     private final PendingRidePool pendingRidePool;
     private final LoggingService loggingService;
+    private final CoreClient coreClient;
+    private final String groupId;
 
     public CoreWebhookController(
             OverflowPolicyService overflowPolicyService,
             LamportClockService lamportClockService,
             RideRepository rideRepository,
             PendingRidePool pendingRidePool,
-            LoggingService loggingService
+            LoggingService loggingService,
+            CoreClient coreClient,
+            @Value("${ridefleet.group-id}") String groupId
     ) {
         this.overflowPolicyService = overflowPolicyService;
         this.lamportClockService = lamportClockService;
         this.rideRepository = rideRepository;
         this.pendingRidePool = pendingRidePool;
         this.loggingService = loggingService;
+        this.coreClient = coreClient;
+        this.groupId = groupId;
     }
 
     @PostMapping("/incoming")
@@ -112,6 +122,54 @@ public class CoreWebhookController {
                         null
                 )
         );
+
+        try {
+
+            long confirmTimestamp = lamportClockService.tick();
+
+            RideStatusUpdateRequest statusUpdateRequest =
+                    new RideStatusUpdateRequest(
+                            "confirm",
+                            groupId,
+                            confirmTimestamp
+                    );
+
+            coreClient.updateRideStatus(
+                    rideUuid,
+                    statusUpdateRequest
+            );
+
+            savedRide.setStatus(RideStatus.CONFIRMED);
+            savedRide.setLogicalTimestamp(confirmTimestamp);
+
+            rideRepository.save(savedRide);
+
+            loggingService.info(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "RIDE_CONFIRMED_TO_CORE",
+                            savedRide.getId(),
+                            "PediUber",
+                            RideStatus.REQUESTED.name(),
+                            RideStatus.CONFIRMED.name(),
+                            null
+                    )
+            );
+
+        } catch (RestClientException exception) {
+
+            loggingService.warn(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "CORE_CONFIRM_FAILED",
+                            savedRide.getId(),
+                            "PediUber",
+                            savedRide.getStatus().name(),
+                            savedRide.getStatus().name(),
+                            null
+                    )
+            );
+        }
 
         return ResponseEntity.ok().build();
     }

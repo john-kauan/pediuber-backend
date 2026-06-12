@@ -37,6 +37,17 @@ public class Ride {
 
     private LocalDateTime createdAt;
 
+    @Column(unique = true)
+    private String coreRideUuid;
+
+    private String externalPassengerId;
+
+    private String originServiceId;
+
+    private String lockExpiresAt;
+
+    private Long logicalTimestamp;
+
     public Ride(String origin, String destination, Passenger passenger) {
         this.origin = origin;
         this.destination = destination;

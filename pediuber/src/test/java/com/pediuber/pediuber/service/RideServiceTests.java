@@ -1,5 +1,6 @@
 package com.pediuber.pediuber.service;
 
+import com.pediuber.pediuber.core.dto.RideAccepted;
 import com.pediuber.pediuber.dto.RideQueueMessage;
 import com.pediuber.pediuber.entity.Passenger;
 import com.pediuber.pediuber.entity.Ride;
@@ -15,7 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
+import com.pediuber.pediuber.core.service.CoreDelegationService;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -34,6 +35,7 @@ public class RideServiceTests {
     private RideService rideService;
     private OverflowPolicyService overflowPolicyService;
     private RideProducer rideProducer;
+    private CoreDelegationService coreDelegationService;
 
     @BeforeEach
     void setup() {
@@ -52,6 +54,8 @@ public class RideServiceTests {
 
         rideProducer = Mockito.mock(RideProducer.class);
 
+        coreDelegationService = Mockito.mock(CoreDelegationService.class);
+
         rideService = new RideService(
                 rideRepository,
                 driverRepository,
@@ -59,7 +63,8 @@ public class RideServiceTests {
                 pendingRidePool,
                 loggingService,
                 overflowPolicyService,
-                rideProducer
+                rideProducer,
+                coreDelegationService
 
         );
     }
@@ -193,6 +198,16 @@ public class RideServiceTests {
         assertEquals(0, capturedMessage.getAttempts());
 
         verify(pendingRidePool, never()).addRide(any(Ride.class));
+
+        verify(coreDelegationService).delegateRide(savedRide);
+        verify(pendingRidePool, never()).addRide(any(Ride.class));
+
+        when(coreDelegationService.delegateRide(savedRide))
+                .thenReturn(new RideAccepted(
+                        "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                        10L,
+                        "Corrida aceita pelo Core"
+                ));
     }
 
 }

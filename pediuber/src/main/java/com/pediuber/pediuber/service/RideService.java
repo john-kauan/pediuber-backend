@@ -14,6 +14,9 @@ import com.pediuber.pediuber.logging.LoggingService;
 import com.pediuber.pediuber.dto.RideQueueMessage;
 import com.pediuber.pediuber.policy.OverflowPolicyService;
 import com.pediuber.pediuber.rabbitmq.RideProducer;
+import com.pediuber.pediuber.core.dto.RideAccepted;
+import com.pediuber.pediuber.core.service.CoreDelegationService;
+import org.springframework.web.client.RestClientException;
 
 import java.time.LocalDateTime;
 
@@ -27,6 +30,7 @@ public class RideService {
     private final LoggingService loggingService;
     private final OverflowPolicyService overflowPolicyService;
     private final RideProducer rideProducer;
+    private final CoreDelegationService coreDelegationService;
 
     public RideService(
             RideRepository rideRepository,
@@ -35,7 +39,8 @@ public class RideService {
             PendingRidePool pendingRidePool,
             LoggingService loggingService,
             OverflowPolicyService overflowPolicyService,
-            RideProducer rideProducer
+            RideProducer rideProducer,
+            CoreDelegationService coreDelegationService
     ) {
         this.rideRepository = rideRepository;
         this.driverRepository = driverRepository;
@@ -44,6 +49,7 @@ public class RideService {
         this.loggingService = loggingService;
         this.overflowPolicyService = overflowPolicyService;
         this.rideProducer = rideProducer;
+        this.coreDelegationService = coreDelegationService;
     }
 
     public Ride createRide(Long passengerId, Ride ride) {
@@ -71,31 +77,47 @@ public class RideService {
 
         if (overflowPolicyService.isOverloaded()) {
 
-            RideQueueMessage message = new RideQueueMessage(
-                    savedRide.getId(),
-                    savedRide.getOrigin(),
-                    savedRide.getDestination(),
-                    passenger.getId(),
-                    savedRide.getStatus().name(),
-                    LocalDateTime.now().toString(),
-                    0
-            );
+            try {
 
-            rideProducer.sendRideToOutputQueue(message);
+                RideAccepted rideAccepted =
+                        coreDelegationService.delegateRide(savedRide);
 
-            loggingService.warn(
-                    new LogEvent(
-                            LocalDateTime.now().toString(),
-                            "RIDE_SENT_TO_OUTPUT_QUEUE",
-                            savedRide.getId(),
-                            "PediUber",
-                            savedRide.getStatus().name(),
-                            savedRide.getStatus().name(),
-                            null
-                    )
-            );
+                savedRide.setCoreRideUuid(rideAccepted.getRideUuid());
+                savedRide.setOriginServiceId("pediuber");
+                savedRide.setLogicalTimestamp(rideAccepted.getLogicalTimestamp());
 
-            return savedRide;
+                Ride delegatedRide = rideRepository.save(savedRide);
+
+                loggingService.warn(
+                        new LogEvent(
+                                LocalDateTime.now().toString(),
+                                "RIDE_DELEGATED_TO_CORE",
+                                delegatedRide.getId(),
+                                "PediUber",
+                                delegatedRide.getStatus().name(),
+                                delegatedRide.getStatus().name(),
+                                null
+                        )
+                );
+
+                return delegatedRide;
+
+            } catch (RestClientException exception) {
+
+                loggingService.error(
+                        new LogEvent(
+                                LocalDateTime.now().toString(),
+                                "CORE_DELEGATION_FAILED",
+                                savedRide.getId(),
+                                "PediUber",
+                                savedRide.getStatus().name(),
+                                savedRide.getStatus().name(),
+                                null
+                        )
+                );
+
+                throw new RuntimeException("Failed to delegate ride to Core");
+            }
         }
 
         pendingRidePool.addRide(savedRide);

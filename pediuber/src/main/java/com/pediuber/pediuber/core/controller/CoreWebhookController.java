@@ -5,12 +5,14 @@ import com.pediuber.pediuber.core.dto.ProposalResponse;
 import com.pediuber.pediuber.core.dto.RideAssignment;
 import com.pediuber.pediuber.core.dto.RideAuctionNotification;
 import com.pediuber.pediuber.core.service.LamportClockService;
+import com.pediuber.pediuber.entity.Driver;
 import com.pediuber.pediuber.entity.Ride;
 import com.pediuber.pediuber.enums.RideStatus;
 import com.pediuber.pediuber.logging.LogEvent;
 import com.pediuber.pediuber.logging.LoggingService;
 import com.pediuber.pediuber.policy.OverflowPolicyService;
 import com.pediuber.pediuber.pool.PendingRidePool;
+import com.pediuber.pediuber.repository.DriverRepository;
 import com.pediuber.pediuber.repository.RideRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +35,7 @@ public class CoreWebhookController {
     private final LoggingService loggingService;
     private final CoreClient coreClient;
     private final String groupId;
+    private final DriverRepository driverRepository;
 
     public CoreWebhookController(
             OverflowPolicyService overflowPolicyService,
@@ -40,6 +43,7 @@ public class CoreWebhookController {
             RideRepository rideRepository,
             PendingRidePool pendingRidePool,
             LoggingService loggingService,
+            DriverRepository driverRepository,
             CoreClient coreClient,
             @Value("${ridefleet.group-id}") String groupId
     ) {
@@ -50,6 +54,7 @@ public class CoreWebhookController {
         this.loggingService = loggingService;
         this.coreClient = coreClient;
         this.groupId = groupId;
+        this.driverRepository = driverRepository;
     }
 
     @PostMapping("/incoming")
@@ -203,5 +208,53 @@ public class CoreWebhookController {
         }
 
         return builder.toString();
+    }
+
+    private Ride assignAvailableDriverIfPossible(Ride ride) {
+
+        Driver driver = driverRepository
+                .findFirstByAvailableTrue()
+                .orElse(null);
+
+        if (driver == null) {
+
+            loggingService.warn(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "NO_DRIVER_AVAILABLE_FOR_CORE_RIDE",
+                            ride.getId(),
+                            "PediUber",
+                            ride.getStatus().name(),
+                            ride.getStatus().name(),
+                            null
+                    )
+            );
+
+            return ride;
+        }
+
+        RideStatus previousStatus = ride.getStatus();
+
+        driver.setAvailable(false);
+        driverRepository.save(driver);
+
+        ride.setDriver(driver);
+        ride.setStatus(RideStatus.MATCHED);
+
+        Ride savedRide = rideRepository.save(ride);
+
+        loggingService.info(
+                new LogEvent(
+                        LocalDateTime.now().toString(),
+                        "DRIVER_ASSIGNED_TO_CORE_RIDE",
+                        savedRide.getId(),
+                        "PediUber",
+                        previousStatus.name(),
+                        savedRide.getStatus().name(),
+                        null
+                )
+        );
+
+        return savedRide;
     }
 }

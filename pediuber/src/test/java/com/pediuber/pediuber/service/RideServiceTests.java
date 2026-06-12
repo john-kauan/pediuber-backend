@@ -18,7 +18,7 @@ import com.pediuber.pediuber.core.service.CoreDelegationService;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
-
+import com.pediuber.pediuber.core.service.CoreRideStatusService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -34,6 +34,7 @@ public class RideServiceTests {
     private OverflowPolicyService overflowPolicyService;
     private RideProducer rideProducer;
     private CoreDelegationService coreDelegationService;
+    private CoreRideStatusService coreRideStatusService;
 
     @BeforeEach
     void setup() {
@@ -54,6 +55,8 @@ public class RideServiceTests {
 
         coreDelegationService = Mockito.mock(CoreDelegationService.class);
 
+        coreRideStatusService = Mockito.mock(CoreRideStatusService.class);
+
         rideService = new RideService(
                 rideRepository,
                 driverRepository,
@@ -62,7 +65,8 @@ public class RideServiceTests {
                 loggingService,
                 overflowPolicyService,
                 rideProducer,
-                coreDelegationService
+                coreDelegationService,
+                coreRideStatusService
 
         );
     }

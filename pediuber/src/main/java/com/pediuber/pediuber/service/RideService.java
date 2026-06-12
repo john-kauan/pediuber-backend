@@ -17,7 +17,8 @@ import com.pediuber.pediuber.rabbitmq.RideProducer;
 import com.pediuber.pediuber.core.dto.RideAccepted;
 import com.pediuber.pediuber.core.service.CoreDelegationService;
 import org.springframework.web.client.RestClientException;
-
+import com.pediuber.pediuber.core.service.CoreRideStatusService;
+import org.springframework.web.client.RestClientException;
 import java.time.LocalDateTime;
 
 @Service
@@ -31,6 +32,7 @@ public class RideService {
     private final OverflowPolicyService overflowPolicyService;
     private final RideProducer rideProducer;
     private final CoreDelegationService coreDelegationService;
+    private final CoreRideStatusService coreRideStatusService;
 
     public RideService(
             RideRepository rideRepository,
@@ -40,7 +42,8 @@ public class RideService {
             LoggingService loggingService,
             OverflowPolicyService overflowPolicyService,
             RideProducer rideProducer,
-            CoreDelegationService coreDelegationService
+            CoreDelegationService coreDelegationService,
+            CoreRideStatusService coreRideStatusService
     ) {
         this.rideRepository = rideRepository;
         this.driverRepository = driverRepository;
@@ -50,6 +53,7 @@ public class RideService {
         this.overflowPolicyService = overflowPolicyService;
         this.rideProducer = rideProducer;
         this.coreDelegationService = coreDelegationService;
+        this.coreRideStatusService = coreRideStatusService;
     }
 
     public Ride createRide(Long passengerId, Ride ride) {
@@ -130,17 +134,43 @@ public class RideService {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new RuntimeException("Ride not found"));
 
-        validateStatusTransition(ride.getStatus(), newStatus);
-
         RideStatus previousStatus = ride.getStatus();
 
+        validateStatusTransition(previousStatus, newStatus);
+
         ride.setStatus(newStatus);
+
+        Ride savedRide = rideRepository.save(ride);
+
+        try {
+
+            coreRideStatusService.notifyStatusChange(
+                    savedRide,
+                    newStatus
+            );
+
+            savedRide = rideRepository.save(savedRide);
+
+        } catch (RestClientException exception) {
+
+            loggingService.warn(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "CORE_STATUS_UPDATE_FAILED",
+                            savedRide.getId(),
+                            "PediUber",
+                            previousStatus.name(),
+                            newStatus.name(),
+                            null
+                    )
+            );
+        }
 
         loggingService.info(
                 new LogEvent(
                         LocalDateTime.now().toString(),
                         "RIDE_STATUS_UPDATED",
-                        ride.getId(),
+                        savedRide.getId(),
                         "PediUber",
                         previousStatus.name(),
                         newStatus.name(),
@@ -148,7 +178,7 @@ public class RideService {
                 )
         );
 
-        return rideRepository.save(ride);
+        return savedRide;
     }
 
     public Ride matchDriver(Long rideId, Long driverId) {

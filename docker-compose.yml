@@ -16,6 +16,8 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
   pediuber:
     build:
@@ -41,3 +43,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+
+volumes:
+  rabbitmq_data:

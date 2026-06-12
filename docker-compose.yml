@@ -45,7 +45,6 @@ services:
 
     networks:
       - pediuber-net
-      - ridefleet-net
 
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://localhost:8080/health || exit 1" ]
@@ -59,7 +58,3 @@ volumes:
 networks:
   pediuber-net:
     driver: bridge
-
-  ridefleet-net:
-    external: true
-    name: ridefleet-net

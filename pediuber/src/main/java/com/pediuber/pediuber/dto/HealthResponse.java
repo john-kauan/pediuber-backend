@@ -15,5 +15,8 @@ public class HealthResponse {
     private long availableDrivers;
     private int pendingRides;
     private double averageLatency;
-
+    private int inputQueueMessages;
+    private int outputQueueMessages;
+    private int inputDlqMessages;
+    private int outputDlqMessages;
 }

@@ -11,14 +11,12 @@ import com.pediuber.pediuber.repository.PassengerRepository;
 import com.pediuber.pediuber.repository.RideRepository;
 import org.springframework.stereotype.Service;
 import com.pediuber.pediuber.logging.LoggingService;
-import com.pediuber.pediuber.dto.RideQueueMessage;
 import com.pediuber.pediuber.policy.OverflowPolicyService;
 import com.pediuber.pediuber.rabbitmq.RideProducer;
 import com.pediuber.pediuber.core.dto.RideAccepted;
 import com.pediuber.pediuber.core.service.CoreDelegationService;
 import org.springframework.web.client.RestClientException;
 import com.pediuber.pediuber.core.service.CoreRideStatusService;
-import org.springframework.web.client.RestClientException;
 import java.time.LocalDateTime;
 
 @Service
@@ -140,6 +138,10 @@ public class RideService {
 
         ride.setStatus(newStatus);
 
+        if (shouldReleaseDriver(newStatus)) {
+            releaseDriverIfNecessary(ride);
+        }
+
         Ride savedRide = rideRepository.save(ride);
 
         try {
@@ -179,6 +181,42 @@ public class RideService {
         );
 
         return savedRide;
+    }
+
+    public Ride startRide(Long rideId) {
+
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new RuntimeException("Ride not found"));
+
+        if (ride.getDriver() == null) {
+            throw new RuntimeException("Ride has no assigned driver");
+        }
+
+        return updateRideStatus(rideId, RideStatus.IN_TRANSIT);
+    }
+
+    public Ride completeRide(Long rideId) {
+
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new RuntimeException("Ride not found"));
+
+        if (ride.getDriver() == null) {
+            throw new RuntimeException("Ride has no assigned driver");
+        }
+
+        return updateRideStatus(rideId, RideStatus.COMPLETED);
+    }
+
+    public Ride cancelRide(Long rideId) {
+
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new RuntimeException("Ride not found"));
+
+        if (shouldSendCompensationToCore(ride)) {
+            return updateRideStatus(rideId, RideStatus.COMPENSATING);
+        }
+
+        return updateRideStatus(rideId, RideStatus.CANCELLED);
     }
 
     public Ride matchDriver(Long rideId, Long driverId) {
@@ -257,16 +295,50 @@ public class RideService {
         return rideRepository.save(ride);
     }
 
+    private boolean shouldReleaseDriver(RideStatus status) {
+
+        return status == RideStatus.COMPLETED
+                || status == RideStatus.CANCELLED
+                || status == RideStatus.COMPENSATING;
+    }
+
+    private void releaseDriverIfNecessary(Ride ride) {
+
+        Driver driver = ride.getDriver();
+
+        if (driver == null) {
+            return;
+        }
+
+        driver.setAvailable(true);
+        driverRepository.save(driver);
+    }
+
+    private boolean shouldSendCompensationToCore(Ride ride) {
+
+        return ride.getCoreRideUuid() != null
+                && !ride.getCoreRideUuid().isBlank()
+                && ride.getDriver() != null
+                && ride.getStatus() != RideStatus.COMPLETED
+                && ride.getStatus() != RideStatus.CANCELLED
+                && ride.getStatus() != RideStatus.COMPENSATING;
+    }
+
     private void validateStatusTransition(
             RideStatus currentStatus,
             RideStatus newStatus
     ) {
 
+        if (currentStatus == newStatus) {
+            return;
+        }
+
         switch (currentStatus) {
 
             case REQUESTED -> {
                 if (newStatus != RideStatus.MATCHED &&
-                        newStatus != RideStatus.CANCELLED) {
+                        newStatus != RideStatus.CANCELLED &&
+                        newStatus != RideStatus.COMPENSATING) {
 
                     throw new RuntimeException(
                             "Invalid transition from REQUESTED to " + newStatus
@@ -276,7 +348,8 @@ public class RideService {
 
             case MATCHED -> {
                 if (newStatus != RideStatus.CONFIRMED &&
-                        newStatus != RideStatus.CANCELLED) {
+                        newStatus != RideStatus.CANCELLED &&
+                        newStatus != RideStatus.COMPENSATING) {
 
                     throw new RuntimeException(
                             "Invalid transition from MATCHED to " + newStatus
@@ -286,7 +359,8 @@ public class RideService {
 
             case CONFIRMED -> {
                 if (newStatus != RideStatus.IN_TRANSIT &&
-                        newStatus != RideStatus.CANCELLED) {
+                        newStatus != RideStatus.CANCELLED &&
+                        newStatus != RideStatus.COMPENSATING) {
 
                     throw new RuntimeException(
                             "Invalid transition from CONFIRMED to " + newStatus
@@ -295,10 +369,20 @@ public class RideService {
             }
 
             case IN_TRANSIT -> {
-                if (newStatus != RideStatus.COMPLETED) {
+                if (newStatus != RideStatus.COMPLETED &&
+                        newStatus != RideStatus.COMPENSATING) {
 
                     throw new RuntimeException(
                             "Invalid transition from IN_TRANSIT to " + newStatus
+                    );
+                }
+            }
+
+            case COMPENSATING -> {
+                if (newStatus != RideStatus.CANCELLED) {
+
+                    throw new RuntimeException(
+                            "Invalid transition from COMPENSATING to " + newStatus
                     );
                 }
             }

@@ -112,6 +112,10 @@ public class CoreWebhookController {
 
         Ride savedRide = rideRepository.save(ride);
 
+        if (isAlreadyConfirmedOrBeyond(savedRide)) {
+            return ResponseEntity.ok().build();
+        }
+
         if (!alreadyExists) {
             pendingRidePool.addRide(savedRide);
         }
@@ -130,9 +134,15 @@ public class CoreWebhookController {
 
         savedRide = assignAvailableDriverIfPossible(savedRide);
 
+        if (savedRide.getDriver() == null) {
+            return ResponseEntity.ok().build();
+        }
+
         try {
 
-            long confirmTimestamp = lamportClockService.tick();
+            long confirmTimestamp = lamportClockService.nextAfter(
+                    savedRide.getLogicalTimestamp()
+            );
 
             RideStatusUpdateRequest statusUpdateRequest =
                     new RideStatusUpdateRequest(
@@ -214,6 +224,14 @@ public class CoreWebhookController {
 
     private Ride assignAvailableDriverIfPossible(Ride ride) {
 
+        if (ride.getDriver() != null) {
+            return ride;
+        }
+
+        if (isAlreadyConfirmedOrBeyond(ride)) {
+            return ride;
+        }
+
         Driver driver = driverRepository
                 .findFirstByAvailableTrue()
                 .orElse(null);
@@ -258,5 +276,13 @@ public class CoreWebhookController {
         );
 
         return savedRide;
+    }
+
+    private boolean isAlreadyConfirmedOrBeyond(Ride ride) {
+
+        return ride.getStatus() == RideStatus.CONFIRMED
+                || ride.getStatus() == RideStatus.IN_TRANSIT
+                || ride.getStatus() == RideStatus.COMPLETED
+                || ride.getStatus() == RideStatus.CANCELLED;
     }
 }

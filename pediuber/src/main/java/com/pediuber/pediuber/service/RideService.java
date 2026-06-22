@@ -17,7 +17,9 @@ import com.pediuber.pediuber.core.dto.RideAccepted;
 import com.pediuber.pediuber.core.service.CoreDelegationService;
 import org.springframework.web.client.RestClientException;
 import com.pediuber.pediuber.core.service.CoreRideStatusService;
+import org.springframework.web.client.RestClientResponseException;
 import java.time.LocalDateTime;
+
 
 @Service
 public class RideService {
@@ -134,7 +136,65 @@ public class RideService {
 
         RideStatus previousStatus = ride.getStatus();
 
+        if (previousStatus == newStatus) {
+            return ride;
+        }
+
         validateStatusTransition(previousStatus, newStatus);
+
+        try {
+
+            coreRideStatusService.notifyStatusChange(
+                    ride,
+                    newStatus
+            );
+
+        } catch (RestClientResponseException exception) {
+
+            System.out.println("[CORE_STATUS_UPDATE_FAILED]");
+            System.out.println("HTTP Status: " + exception.getStatusCode());
+            System.out.println("Response Body: " + exception.getResponseBodyAsString());
+
+            loggingService.warn(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "CORE_STATUS_UPDATE_FAILED",
+                            ride.getId(),
+                            "PediUber",
+                            previousStatus.name(),
+                            newStatus.name(),
+                            exception.getResponseBodyAsString()
+                    )
+            );
+
+            throw new RuntimeException(
+                    "Failed to notify Core about ride status: "
+                            + exception.getStatusCode()
+                            + " - "
+                            + exception.getResponseBodyAsString()
+            );
+
+        } catch (RestClientException exception) {
+
+            System.out.println("[CORE_STATUS_UPDATE_FAILED]");
+            System.out.println("Error: " + exception.getMessage());
+
+            loggingService.warn(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "CORE_STATUS_UPDATE_FAILED",
+                            ride.getId(),
+                            "PediUber",
+                            previousStatus.name(),
+                            newStatus.name(),
+                            exception.getMessage()
+                    )
+            );
+
+            throw new RuntimeException(
+                    "Failed to notify Core about ride status: " + exception.getMessage()
+            );
+        }
 
         ride.setStatus(newStatus);
 
@@ -143,30 +203,6 @@ public class RideService {
         }
 
         Ride savedRide = rideRepository.save(ride);
-
-        try {
-
-            coreRideStatusService.notifyStatusChange(
-                    savedRide,
-                    newStatus
-            );
-
-            savedRide = rideRepository.save(savedRide);
-
-        } catch (RestClientException exception) {
-
-            loggingService.warn(
-                    new LogEvent(
-                            LocalDateTime.now().toString(),
-                            "CORE_STATUS_UPDATE_FAILED",
-                            savedRide.getId(),
-                            "PediUber",
-                            previousStatus.name(),
-                            newStatus.name(),
-                            null
-                    )
-            );
-        }
 
         loggingService.info(
                 new LogEvent(
@@ -181,6 +217,18 @@ public class RideService {
         );
 
         return savedRide;
+    }
+
+    public Ride confirmRide(Long rideId) {
+
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new RuntimeException("Ride not found"));
+
+        if (ride.getDriver() == null) {
+            throw new RuntimeException("Ride has no assigned driver");
+        }
+
+        return updateRideStatus(rideId, RideStatus.CONFIRMED);
     }
 
     public Ride startRide(Long rideId) {

@@ -20,7 +20,7 @@ import com.pediuber.pediuber.core.client.CoreClient;
 import com.pediuber.pediuber.core.dto.RideStatusUpdateRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.RestClientException;
-
+import com.pediuber.pediuber.service.RideService;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -36,6 +36,7 @@ public class CoreWebhookController {
     private final CoreClient coreClient;
     private final String groupId;
     private final DriverRepository driverRepository;
+    private final RideService rideService;
 
     public CoreWebhookController(
             OverflowPolicyService overflowPolicyService,
@@ -45,6 +46,7 @@ public class CoreWebhookController {
             LoggingService loggingService,
             DriverRepository driverRepository,
             CoreClient coreClient,
+            RideService rideService,
             @Value("${ridefleet.group-id}") String groupId
     ) {
         this.overflowPolicyService = overflowPolicyService;
@@ -53,6 +55,7 @@ public class CoreWebhookController {
         this.pendingRidePool = pendingRidePool;
         this.loggingService = loggingService;
         this.coreClient = coreClient;
+        this.rideService = rideService;
         this.groupId = groupId;
         this.driverRepository = driverRepository;
     }
@@ -141,40 +144,21 @@ public class CoreWebhookController {
 
         try {
 
-            long confirmTimestamp = lamportClockService.nextAfter(
-                    savedRide.getLogicalTimestamp()
-            );
-
-            RideStatusUpdateRequest statusUpdateRequest =
-                    new RideStatusUpdateRequest(
-                            "confirm",
-                            groupId,
-                            confirmTimestamp
-                    );
-
-            coreClient.updateRideStatus(
-                    rideUuid,
-                    statusUpdateRequest
-            );
-
-            savedRide.setStatus(RideStatus.CONFIRMED);
-            savedRide.setLogicalTimestamp(confirmTimestamp);
-
-            rideRepository.save(savedRide);
+            Ride confirmedRide = rideService.confirmRide(savedRide.getId());
 
             loggingService.info(
                     new LogEvent(
                             LocalDateTime.now().toString(),
                             "RIDE_CONFIRMED_TO_CORE",
-                            savedRide.getId(),
+                            confirmedRide.getId(),
                             "PediUber",
-                            RideStatus.REQUESTED.name(),
+                            RideStatus.MATCHED.name(),
                             RideStatus.CONFIRMED.name(),
                             null
                     )
             );
 
-        } catch (RestClientException exception) {
+        } catch (RuntimeException exception) {
 
             loggingService.warn(
                     new LogEvent(
@@ -184,7 +168,7 @@ public class CoreWebhookController {
                             "PediUber",
                             savedRide.getStatus().name(),
                             savedRide.getStatus().name(),
-                            null
+                            exception.getMessage()
                     )
             );
         }

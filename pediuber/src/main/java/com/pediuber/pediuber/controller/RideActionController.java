@@ -38,4 +38,12 @@ public class RideActionController {
 
         return ResponseEntity.ok(ride);
     }
+
+    @PatchMapping("/{id}/confirm")
+    public ResponseEntity<Ride> confirmRide(@PathVariable Long id) {
+
+        Ride ride = rideService.confirmRide(id);
+
+        return ResponseEntity.ok(ride);
+    }
 }

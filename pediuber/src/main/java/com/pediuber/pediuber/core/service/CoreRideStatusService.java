@@ -47,6 +47,13 @@ public class CoreRideStatusService {
                 logicalTimestamp
         );
 
+        System.out.println(
+                "[CORE_STATUS_REQUEST] rideUuid=" + ride.getCoreRideUuid()
+                        + ", newState=" + request.newState()
+                        + ", serviceId=" + request.serviceId()
+                        + ", logicalTimestamp=" + request.logicalTimestamp()
+        );
+
         coreClient.updateRideStatus(
                 ride.getCoreRideUuid(),
                 request

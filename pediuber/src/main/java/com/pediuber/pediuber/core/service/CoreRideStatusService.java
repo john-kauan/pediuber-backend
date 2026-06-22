@@ -62,6 +62,7 @@ public class CoreRideStatusService {
             case IN_TRANSIT -> "in_transit";
             case COMPLETED -> "complete";
             case CANCELLED -> "cancelled";
+            case COMPENSATING -> "compensating";
             default -> null;
         };
     }

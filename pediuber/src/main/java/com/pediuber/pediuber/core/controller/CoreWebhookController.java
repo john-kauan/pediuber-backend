@@ -135,6 +135,7 @@ public class CoreWebhookController {
         savedRide = assignAvailableDriverIfPossible(savedRide);
 
         if (savedRide.getDriver() == null) {
+            notifyCompensationToCore(savedRide);
             return ResponseEntity.ok().build();
         }
 
@@ -278,11 +279,65 @@ public class CoreWebhookController {
         return savedRide;
     }
 
+    private void notifyCompensationToCore(Ride ride) {
+
+        try {
+
+            long compensationTimestamp = lamportClockService.nextAfter(
+                    ride.getLogicalTimestamp()
+            );
+
+            RideStatusUpdateRequest statusUpdateRequest =
+                    new RideStatusUpdateRequest(
+                            "compensating",
+                            groupId,
+                            compensationTimestamp
+                    );
+
+            coreClient.updateRideStatus(
+                    ride.getCoreRideUuid(),
+                    statusUpdateRequest
+            );
+
+            ride.setStatus(RideStatus.COMPENSATING);
+            ride.setLogicalTimestamp(compensationTimestamp);
+
+            rideRepository.save(ride);
+
+            loggingService.warn(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "RIDE_COMPENSATING_TO_CORE",
+                            ride.getId(),
+                            "PediUber",
+                            RideStatus.MATCHED.name(),
+                            RideStatus.COMPENSATING.name(),
+                            "Sem motorista disponível para atender corrida atribuída pelo Core"
+                    )
+            );
+
+        } catch (RestClientException exception) {
+
+            loggingService.warn(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "CORE_COMPENSATION_FAILED",
+                            ride.getId(),
+                            "PediUber",
+                            ride.getStatus().name(),
+                            ride.getStatus().name(),
+                            exception.getMessage()
+                    )
+            );
+        }
+    }
+
     private boolean isAlreadyConfirmedOrBeyond(Ride ride) {
 
         return ride.getStatus() == RideStatus.CONFIRMED
                 || ride.getStatus() == RideStatus.IN_TRANSIT
                 || ride.getStatus() == RideStatus.COMPLETED
-                || ride.getStatus() == RideStatus.CANCELLED;
+                || ride.getStatus() == RideStatus.CANCELLED
+                || ride.getStatus() == RideStatus.COMPENSATING;
     }
 }

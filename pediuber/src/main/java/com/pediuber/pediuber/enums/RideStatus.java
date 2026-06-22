@@ -6,5 +6,6 @@ public enum RideStatus {
     CONFIRMED,
     IN_TRANSIT,
     COMPLETED,
-    CANCELLED
+    CANCELLED,
+    COMPENSATING
 }

@@ -37,7 +37,9 @@ public class CoreRideStatusService {
             return;
         }
 
-        long logicalTimestamp = lamportClockService.tick();
+        long logicalTimestamp = lamportClockService.nextAfter(
+                ride.getLogicalTimestamp()
+        );
 
         RideStatusUpdateRequest request = new RideStatusUpdateRequest(
                 coreState,

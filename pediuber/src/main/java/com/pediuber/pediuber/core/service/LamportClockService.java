@@ -20,7 +20,15 @@ public class LamportClockService {
         );
     }
 
+    public long nextAfter(Long receivedTimestamp) {
+
+        long safeTimestamp = receivedTimestamp == null ? 0L : receivedTimestamp;
+
+        return update(safeTimestamp);
+    }
+
     public long current() {
+
         return clock.get();
     }
 

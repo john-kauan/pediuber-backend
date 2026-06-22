@@ -56,7 +56,6 @@ public class CoreRideStatusService {
     private String mapToCoreState(RideStatus status) {
 
         return switch (status) {
-            case MATCHED -> "match";
             case CONFIRMED -> "confirm";
             case IN_TRANSIT -> "in_transit";
             case COMPLETED -> "complete";

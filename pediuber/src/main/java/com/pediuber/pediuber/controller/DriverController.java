@@ -1,5 +1,6 @@
 package com.pediuber.pediuber.controller;
 
+import com.pediuber.pediuber.dto.DriverAvailabilityRequest;
 import com.pediuber.pediuber.entity.Driver;
 import com.pediuber.pediuber.service.DriverService;
 import org.springframework.web.bind.annotation.*;
@@ -31,4 +32,14 @@ public class DriverController {
         return driverService.getDriverById(id);
     }
 
+    @PatchMapping("/{id}/availability")
+    public Driver updateAvailability(
+            @PathVariable Long id,
+            @RequestBody DriverAvailabilityRequest request
+    ) {
+        return driverService.updateAvailability(
+                id,
+                request.available()
+        );
+    }
 }

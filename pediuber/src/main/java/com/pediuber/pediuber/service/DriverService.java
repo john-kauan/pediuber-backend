@@ -1,6 +1,5 @@
 package com.pediuber.pediuber.service;
 
-
 import com.pediuber.pediuber.entity.Driver;
 import com.pediuber.pediuber.repository.DriverRepository;
 import org.springframework.stereotype.Service;
@@ -17,6 +16,11 @@ public class DriverService {
     }
 
     public Driver createDriver(Driver driver) {
+
+        if (driver.getAvailable() == null) {
+            driver.setAvailable(true);
+        }
+
         return driverRepository.save(driver);
     }
 
@@ -29,4 +33,16 @@ public class DriverService {
                 .orElseThrow(() -> new RuntimeException("Driver not found"));
     }
 
+    public Driver updateAvailability(Long id, Boolean available) {
+
+        if (available == null) {
+            throw new RuntimeException("Availability cannot be null");
+        }
+
+        Driver driver = getDriverById(id);
+
+        driver.setAvailable(available);
+
+        return driverRepository.save(driver);
+    }
 }

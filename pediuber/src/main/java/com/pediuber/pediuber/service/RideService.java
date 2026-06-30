@@ -27,6 +27,9 @@ import com.pediuber.pediuber.dto.PassengerRideRequest;
 import com.pediuber.pediuber.dto.PassengerRideResponse;
 import org.springframework.beans.factory.annotation.Value;
 import com.pediuber.pediuber.dto.RideTrackingResponse;
+import com.pediuber.pediuber.dto.RideHistoryResponse;
+import org.springframework.data.domain.Sort;
+import java.util.List;
 
 @Service
 public class RideService {
@@ -481,6 +484,44 @@ public class RideService {
                 calculateProgressPercent(ride.getStatus()),
                 ride.getStatus() == RideStatus.CONFIRMED,
                 ride.getStatus() == RideStatus.IN_TRANSIT
+        );
+    }
+
+    public List<RideHistoryResponse> getRideHistory() {
+
+        return rideRepository.findAll(
+                        Sort.by(Sort.Direction.DESC, "createdAt")
+                )
+                .stream()
+                .map(this::toRideHistoryResponse)
+                .toList();
+    }
+
+    private RideHistoryResponse toRideHistoryResponse(Ride ride) {
+
+        String driverName = null;
+        String vehicle = null;
+
+        if (ride.getDriver() != null) {
+            driverName = ride.getDriver().getName();
+            vehicle = ride.getDriver().getVehicle();
+        }
+
+        boolean delegated = ride.getCoreRideUuid() != null
+                && !ride.getCoreRideUuid().isBlank()
+                && ride.getDriver() == null;
+
+        return new RideHistoryResponse(
+                ride.getId(),
+                ride.getCoreRideUuid(),
+                ride.getStatus() == null ? null : ride.getStatus().name(),
+                ride.getOrigin(),
+                ride.getDestination(),
+                driverName,
+                vehicle,
+                determineAssignedServiceId(ride),
+                delegated,
+                ride.getCreatedAt() == null ? null : ride.getCreatedAt().toString()
         );
     }
 

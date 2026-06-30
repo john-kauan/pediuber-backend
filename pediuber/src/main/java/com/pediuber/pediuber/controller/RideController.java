@@ -7,6 +7,8 @@ import com.pediuber.pediuber.rabbitmq.RideProducer;
 import com.pediuber.pediuber.service.RideService;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/rides")
 public class RideController {
@@ -27,6 +29,11 @@ public class RideController {
                            @RequestBody Ride ride) {
 
         return rideService.createRide(passengerId, ride);
+        }
+
+        @GetMapping("/history")
+        public List<RideHistoryResponse> getRideHistory() {
+        return rideService.getRideHistory();
         }
 
         @PatchMapping("/{rideId}/status")

@@ -19,7 +19,14 @@ import org.springframework.web.client.RestClientException;
 import com.pediuber.pediuber.core.service.CoreRideStatusService;
 import org.springframework.web.client.RestClientResponseException;
 import java.time.LocalDateTime;
-
+import com.pediuber.pediuber.core.client.CoreClient;
+import com.pediuber.pediuber.core.dto.LocationDto;
+import com.pediuber.pediuber.core.dto.RideRequestToCore;
+import com.pediuber.pediuber.dto.LocationRequest;
+import com.pediuber.pediuber.dto.PassengerRideRequest;
+import com.pediuber.pediuber.dto.PassengerRideResponse;
+import org.springframework.beans.factory.annotation.Value;
+import com.pediuber.pediuber.dto.RideTrackingResponse;
 
 @Service
 public class RideService {
@@ -33,6 +40,8 @@ public class RideService {
     private final RideProducer rideProducer;
     private final CoreDelegationService coreDelegationService;
     private final CoreRideStatusService coreRideStatusService;
+    private final CoreClient coreClient;
+    private final String groupId;
 
     public RideService(
             RideRepository rideRepository,
@@ -43,7 +52,10 @@ public class RideService {
             OverflowPolicyService overflowPolicyService,
             RideProducer rideProducer,
             CoreDelegationService coreDelegationService,
-            CoreRideStatusService coreRideStatusService
+            CoreRideStatusService coreRideStatusService,
+            CoreClient coreClient,
+            @Value("${ridefleet.group-id:pediuber}") String groupId
+
     ) {
         this.rideRepository = rideRepository;
         this.driverRepository = driverRepository;
@@ -54,6 +66,8 @@ public class RideService {
         this.rideProducer = rideProducer;
         this.coreDelegationService = coreDelegationService;
         this.coreRideStatusService = coreRideStatusService;
+        this.coreClient = coreClient;
+        this.groupId = groupId;
     }
 
     public Ride createRide(Long passengerId, Ride ride) {
@@ -341,6 +355,253 @@ public class RideService {
         );
 
         return rideRepository.save(ride);
+    }
+
+    public PassengerRideResponse requestRideFromPassenger(PassengerRideRequest request) {
+
+        validatePassengerRideRequest(request);
+
+        String externalPassengerId = generatePassengerId(request.passengerName());
+
+        Ride ride = new Ride();
+
+        ride.setOrigin(formatLocation(request.origin()));
+        ride.setDestination(formatLocation(request.destination()));
+        ride.setExternalPassengerId(externalPassengerId);
+        ride.setOriginServiceId(groupId);
+        ride.setCreatedAt(LocalDateTime.now());
+        ride.setLogicalTimestamp(System.currentTimeMillis());
+
+        Driver availableDriver = driverRepository.findFirstByAvailableTrue()
+                .orElse(null);
+
+        if (availableDriver != null) {
+
+            ride.setDriver(availableDriver);
+            ride.setStatus(RideStatus.CONFIRMED);
+
+            availableDriver.setAvailable(false);
+            driverRepository.save(availableDriver);
+
+            Ride savedRide = rideRepository.save(ride);
+
+            loggingService.info(
+                    new LogEvent(
+                            LocalDateTime.now().toString(),
+                            "PASSENGER_RIDE_CONFIRMED_LOCALLY",
+                            savedRide.getId(),
+                            "PediUber",
+                            null,
+                            savedRide.getStatus().name(),
+                            null
+                    )
+            );
+
+            return new PassengerRideResponse(
+                    savedRide.getId(),
+                    savedRide.getCoreRideUuid(),
+                    savedRide.getStatus().name(),
+                    "Corrida atendida pelo PediUber"
+            );
+        }
+
+        long logicalTimestamp = System.currentTimeMillis();
+
+        RideRequestToCore coreRequest = new RideRequestToCore(
+                groupId,
+                externalPassengerId,
+                toCoreLocation(request.origin()),
+                toCoreLocation(request.destination()),
+                logicalTimestamp,
+                10
+        );
+
+        RideAccepted rideAccepted = coreClient.createRide(coreRequest);
+
+        ride.setCoreRideUuid(rideAccepted.getRideUuid());
+        ride.setLogicalTimestamp(rideAccepted.getLogicalTimestamp());
+        ride.setStatus(RideStatus.REQUESTED);
+
+        Ride savedRide = rideRepository.save(ride);
+
+        loggingService.warn(
+                new LogEvent(
+                        LocalDateTime.now().toString(),
+                        "PASSENGER_RIDE_DELEGATED_TO_CORE",
+                        savedRide.getId(),
+                        "PediUber",
+                        null,
+                        savedRide.getStatus().name(),
+                        null
+                )
+        );
+
+        return new PassengerRideResponse(
+                savedRide.getId(),
+                savedRide.getCoreRideUuid(),
+                savedRide.getStatus().name(),
+                "Corrida enviada ao Core para delegação"
+        );
+    }
+
+    public RideTrackingResponse getRideTracking(Long rideId) {
+
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new RuntimeException("Ride not found"));
+
+        String assignedServiceId = determineAssignedServiceId(ride);
+
+        boolean delegated = ride.getCoreRideUuid() != null
+                && !ride.getCoreRideUuid().isBlank()
+                && ride.getDriver() == null;
+
+        Long driverId = null;
+        String driverName = null;
+        String vehicle = null;
+
+        if (ride.getDriver() != null) {
+            driverId = ride.getDriver().getId();
+            driverName = ride.getDriver().getName();
+            vehicle = ride.getDriver().getVehicle();
+        }
+
+        return new RideTrackingResponse(
+                ride.getId(),
+                ride.getCoreRideUuid(),
+                ride.getStatus().name(),
+                toDisplayStatus(ride.getStatus(), delegated),
+                ride.getOrigin(),
+                ride.getDestination(),
+                assignedServiceId,
+                delegated,
+                driverId,
+                driverName,
+                vehicle,
+                calculateEtaSeconds(ride.getStatus()),
+                calculateProgressPercent(ride.getStatus()),
+                ride.getStatus() == RideStatus.CONFIRMED,
+                ride.getStatus() == RideStatus.IN_TRANSIT
+        );
+    }
+
+    private String determineAssignedServiceId(Ride ride) {
+
+        if (ride.getDriver() != null) {
+            return "pediuber";
+        }
+
+        if (ride.getCoreRideUuid() != null && !ride.getCoreRideUuid().isBlank()) {
+            return "Core/RideFleet";
+        }
+
+        return "pediuber";
+    }
+
+    private String toDisplayStatus(RideStatus status, boolean delegated) {
+
+        if (delegated) {
+            return "Corrida enviada ao Core para delegação";
+        }
+
+        return switch (status) {
+            case REQUESTED -> "Aguardando confirmação";
+            case MATCHED -> "Motorista selecionado";
+            case CONFIRMED -> "Motorista a caminho";
+            case IN_TRANSIT -> "Em trânsito";
+            case COMPLETED -> "Corrida concluída";
+            case CANCELLED -> "Corrida cancelada";
+            case COMPENSATING -> "Repassando corrida";
+        };
+    }
+
+    private Integer calculateEtaSeconds(RideStatus status) {
+
+        return switch (status) {
+            case REQUESTED -> null;
+            case MATCHED -> 240;
+            case CONFIRMED -> 180;
+            case IN_TRANSIT -> 300;
+            case COMPLETED, CANCELLED, COMPENSATING -> 0;
+        };
+    }
+
+    private Integer calculateProgressPercent(RideStatus status) {
+
+        return switch (status) {
+            case REQUESTED -> 10;
+            case MATCHED -> 25;
+            case CONFIRMED -> 45;
+            case IN_TRANSIT -> 75;
+            case COMPLETED -> 100;
+            case CANCELLED -> 0;
+            case COMPENSATING -> 15;
+        };
+    }
+
+    private void validatePassengerRideRequest(PassengerRideRequest request) {
+
+        if (request == null) {
+            throw new RuntimeException("Ride request cannot be null");
+        }
+
+        if (request.origin() == null) {
+            throw new RuntimeException("Origin cannot be null");
+        }
+
+        if (request.destination() == null) {
+            throw new RuntimeException("Destination cannot be null");
+        }
+
+        if (request.origin().lat() == null || request.origin().lng() == null) {
+            throw new RuntimeException("Origin coordinates are required");
+        }
+
+        if (request.destination().lat() == null || request.destination().lng() == null) {
+            throw new RuntimeException("Destination coordinates are required");
+        }
+    }
+
+    private String generatePassengerId(String passengerName) {
+
+        String baseName = passengerName;
+
+        if (baseName == null || baseName.isBlank()) {
+            baseName = "anonimo";
+        }
+
+        String normalizedName = baseName
+                .trim()
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
+
+        if (normalizedName.isBlank()) {
+            normalizedName = "anonimo";
+        }
+
+        return "passenger-" + normalizedName + "-" + System.currentTimeMillis();
+    }
+
+    private LocationDto toCoreLocation(LocationRequest location) {
+
+        return new LocationDto(
+                location.lat(),
+                location.lng(),
+                location.street(),
+                location.number(),
+                location.city(),
+                location.state()
+        );
+    }
+
+    private String formatLocation(LocationRequest location) {
+
+        String street = location.street() == null ? "" : location.street();
+        String number = location.number() == null ? "" : location.number();
+        String city = location.city() == null ? "" : location.city();
+        String state = location.state() == null ? "" : location.state();
+
+        return (street + ", " + number + " - " + city + "/" + state).trim();
     }
 
     private boolean shouldReleaseDriver(RideStatus status) {

@@ -1,5 +1,6 @@
 package com.pediuber.pediuber.service;
 
+import com.pediuber.pediuber.core.client.CoreClient;
 import com.pediuber.pediuber.core.dto.RideAccepted;
 import com.pediuber.pediuber.entity.Passenger;
 import com.pediuber.pediuber.entity.Ride;
@@ -35,6 +36,8 @@ public class RideServiceTests {
     private RideProducer rideProducer;
     private CoreDelegationService coreDelegationService;
     private CoreRideStatusService coreRideStatusService;
+    private CoreClient coreClient;
+    private String groupId;
 
     @BeforeEach
     void setup() {
@@ -57,6 +60,10 @@ public class RideServiceTests {
 
         coreRideStatusService = Mockito.mock(CoreRideStatusService.class);
 
+        coreClient = Mockito.mock(CoreClient.class);
+
+        groupId = "pediuber";
+
         rideService = new RideService(
                 rideRepository,
                 driverRepository,
@@ -66,7 +73,9 @@ public class RideServiceTests {
                 overflowPolicyService,
                 rideProducer,
                 coreDelegationService,
-                coreRideStatusService
+                coreRideStatusService,
+                coreClient,
+                groupId
 
         );
     }

@@ -131,15 +131,88 @@ public class CoreClient {
 
     public RideAccepted createRide(RideRequestToCore request) {
 
-        return coreRestClient
-                .post()
-                .uri("/rides")
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .header("X-API-Key", apiKey)
-                .body(request)
-                .retrieve()
-                .body(RideAccepted.class);
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new RestClientException("RIDEFLEET_API_KEY is empty");
+        }
+
+        String url = coreBaseUrl + "/rides";
+
+        String jsonBody = """
+            {
+              "originServiceId": "%s",
+              "passengerId": "%s",
+              "origin": %s,
+              "destination": %s,
+              "logicalTimestamp": %d,
+              "auctionTimeoutSeconds": %d
+            }
+            """.formatted(
+                escapeJson(request.getOriginServiceId()),
+                escapeJson(request.getPassengerId()),
+                locationToJson(request.getOrigin()),
+                locationToJson(request.getDestination()),
+                request.getLogicalTimestamp(),
+                request.getAuctionTimeoutSeconds()
+        );
+
+        System.out.println("[CORE_POST_URL] " + url);
+        System.out.println("[CORE_POST_BODY] " + jsonBody);
+
+        try {
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .header("X-API-Key", apiKey)
+                    .POST(
+                            HttpRequest.BodyPublishers.ofString(
+                                    jsonBody,
+                                    StandardCharsets.UTF_8
+                            )
+                    )
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    httpRequest,
+                    HttpResponse.BodyHandlers.ofString()
+            );
+
+            System.out.println("[CORE_POST_RESPONSE_STATUS] " + response.statusCode());
+            System.out.println("[CORE_POST_RESPONSE_BODY] " + response.body());
+
+            if (response.statusCode() >= 400) {
+                throw new RestClientException(
+                        "Core ride creation failed: HTTP "
+                                + response.statusCode()
+                                + " - "
+                                + response.body()
+                );
+            }
+
+            return new RideAccepted(
+                    extractStringField(response.body(), "rideUuid"),
+                    extractLongField(response.body(), "logicalTimestamp"),
+                    extractStringField(response.body(), "message")
+            );
+
+        } catch (IOException exception) {
+
+            throw new RestClientException(
+                    "Failed to create ride in Core: " + exception.getMessage(),
+                    exception
+            );
+
+        } catch (InterruptedException exception) {
+
+            Thread.currentThread().interrupt();
+
+            throw new RestClientException(
+                    "Interrupted while creating ride in Core: " + exception.getMessage(),
+                    exception
+            );
+        }
     }
 
     private String removeTrailingSlash(String url) {
@@ -156,5 +229,89 @@ public class CoreClient {
         return value
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"");
+    }
+
+    private String locationToJson(com.pediuber.pediuber.core.dto.LocationDto location) {
+
+        return """
+            {
+              "lat": %s,
+              "lng": %s,
+              "street": "%s",
+              "number": "%s",
+              "city": "%s",
+              "state": "%s"
+            }
+            """.formatted(
+                location.getLat(),
+                location.getLng(),
+                escapeJson(nullToEmpty(location.getStreet())),
+                escapeJson(nullToEmpty(location.getNumber())),
+                escapeJson(nullToEmpty(location.getCity())),
+                escapeJson(nullToEmpty(location.getState()))
+        );
+    }
+
+    private String nullToEmpty(String value) {
+
+        if (value == null) {
+            return "";
+        }
+
+        return value;
+    }
+
+    private String extractStringField(String json, String fieldName) {
+
+        String key = "\"" + fieldName + "\":";
+
+        int keyIndex = json.indexOf(key);
+
+        if (keyIndex < 0) {
+            return null;
+        }
+
+        int firstQuote = json.indexOf("\"", keyIndex + key.length());
+
+        if (firstQuote < 0) {
+            return null;
+        }
+
+        int secondQuote = json.indexOf("\"", firstQuote + 1);
+
+        if (secondQuote < 0) {
+            return null;
+        }
+
+        return json.substring(firstQuote + 1, secondQuote);
+    }
+
+    private long extractLongField(String json, String fieldName) {
+
+        String key = "\"" + fieldName + "\":";
+
+        int keyIndex = json.indexOf(key);
+
+        if (keyIndex < 0) {
+            return 0L;
+        }
+
+        int start = keyIndex + key.length();
+
+        while (start < json.length() && !Character.isDigit(json.charAt(start))) {
+            start++;
+        }
+
+        int end = start;
+
+        while (end < json.length() && Character.isDigit(json.charAt(end))) {
+            end++;
+        }
+
+        if (end == start) {
+            return 0L;
+        }
+
+        return Long.parseLong(json.substring(start, end));
     }
 }

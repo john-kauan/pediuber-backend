@@ -1,8 +1,6 @@
 package com.pediuber.pediuber.controller;
 
-import com.pediuber.pediuber.dto.CreateRideRequest;
-import com.pediuber.pediuber.dto.RideQueueMessage;
-import com.pediuber.pediuber.dto.UpdateRideStatusRequest;
+import com.pediuber.pediuber.dto.*;
 import com.pediuber.pediuber.entity.Ride;
 import com.pediuber.pediuber.pool.PendingRidePool;
 import com.pediuber.pediuber.rabbitmq.RideProducer;
@@ -55,5 +53,18 @@ public class RideController {
             return pendingRidePool.size();
         }
 
+        @PostMapping("/request")
+         public PassengerRideResponse requestRide(
+            @RequestBody PassengerRideRequest request
+        ) {
+        return rideService.requestRideFromPassenger(request);
+        }
+
+        @GetMapping("/{rideId}/tracking")
+        public RideTrackingResponse getRideTracking(
+            @PathVariable Long rideId
+        ) {
+        return rideService.getRideTracking(rideId);
+        }
 
 }

@@ -12,4 +12,9 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     List<Ride> findByStatus(RideStatus status);
     Optional<Ride> findByCoreRideUuid(String coreRideUuid);
 
+    Optional<Ride> findFirstByDriverIdAndStatusInOrderByCreatedAtDesc(
+            Long driverId,
+            List<RideStatus> statuses
+    );
+
 }

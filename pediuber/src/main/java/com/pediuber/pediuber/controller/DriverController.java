@@ -1,6 +1,7 @@
 package com.pediuber.pediuber.controller;
 
 import com.pediuber.pediuber.dto.DriverAvailabilityRequest;
+import com.pediuber.pediuber.dto.DriverCurrentRideResponse;
 import com.pediuber.pediuber.entity.Driver;
 import com.pediuber.pediuber.service.DriverService;
 import org.springframework.web.bind.annotation.*;
@@ -41,5 +42,12 @@ public class DriverController {
                 id,
                 request.available()
         );
+    }
+
+    @GetMapping("/{id}/current-ride")
+    public DriverCurrentRideResponse getCurrentRide(
+            @PathVariable Long id
+    ) {
+        return driverService.getCurrentRide(id);
     }
 }

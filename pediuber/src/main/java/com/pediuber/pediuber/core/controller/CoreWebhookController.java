@@ -21,8 +21,10 @@ import com.pediuber.pediuber.core.dto.RideStatusUpdateRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.RestClientException;
 import com.pediuber.pediuber.service.RideService;
+import com.pediuber.pediuber.metrics.PediUberMetricsService;
 import java.time.LocalDateTime;
 import java.util.Optional;
+
 
 @RestController
 @RequestMapping("/rides")
@@ -37,6 +39,7 @@ public class CoreWebhookController {
     private final String groupId;
     private final DriverRepository driverRepository;
     private final RideService rideService;
+    private final PediUberMetricsService metricsService;
 
     public CoreWebhookController(
             OverflowPolicyService overflowPolicyService,
@@ -47,6 +50,7 @@ public class CoreWebhookController {
             DriverRepository driverRepository,
             CoreClient coreClient,
             RideService rideService,
+            PediUberMetricsService metricsService,
             @Value("${ridefleet.group-id}") String groupId
     ) {
         this.overflowPolicyService = overflowPolicyService;
@@ -56,6 +60,7 @@ public class CoreWebhookController {
         this.loggingService = loggingService;
         this.coreClient = coreClient;
         this.rideService = rideService;
+        this.metricsService = metricsService;
         this.groupId = groupId;
         this.driverRepository = driverRepository;
     }
@@ -121,6 +126,7 @@ public class CoreWebhookController {
 
         if (!alreadyExists) {
             pendingRidePool.addRide(savedRide);
+            metricsService.incrementDelegatedInRide();
         }
 
         loggingService.info(

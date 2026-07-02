@@ -23,34 +23,77 @@ services:
     networks:
       - pediuber-net
 
-  pediuber:
+  pediuber-backend-1:
     build:
       context: ./pediuber
       dockerfile: Dockerfile
-
-    container_name: pediuber-backend
-
-    ports:
-      - "8082:8080"
-
+    container_name: pediuber-backend-1
     depends_on:
       - postgres
       - rabbitmq
-
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      INSTANCE_ID: pediuber-backend-1
       RIDEFLEET_API_KEY: "${RIDEFLEET_API_KEY:-}"
-
+    expose:
+      - "8080"
     restart: always
-
     networks:
       - pediuber-net
+      - ridefleet-net
 
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:8080/health || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  pediuber-backend-2:
+    build:
+      context: ./pediuber
+      dockerfile: Dockerfile
+    container_name: pediuber-backend-2
+    depends_on:
+      - postgres
+      - rabbitmq
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      INSTANCE_ID: pediuber-backend-2
+      RIDEFLEET_API_KEY: "${RIDEFLEET_API_KEY:-}"
+    expose:
+      - "8080"
+    restart: always
+    networks:
+      - pediuber-net
+      - ridefleet-net
+
+  pediuber-backend-3:
+    build:
+      context: ./pediuber
+      dockerfile: Dockerfile
+    container_name: pediuber-backend-3
+    depends_on:
+      - postgres
+      - rabbitmq
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      INSTANCE_ID: pediuber-backend-3
+      RIDEFLEET_API_KEY: "${RIDEFLEET_API_KEY:-}"
+    expose:
+      - "8080"
+    restart: always
+    networks:
+      - pediuber-net
+      - ridefleet-net
+
+  pediuber-load-balancer:
+    image: nginx:1.27-alpine
+    container_name: pediuber-load-balancer
+    depends_on:
+      - pediuber-backend-1
+      - pediuber-backend-2
+      - pediuber-backend-3
+    ports:
+      - "8082:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: always
+    networks:
+      - pediuber-net
 
 volumes:
   rabbitmq_data:
@@ -58,3 +101,6 @@ volumes:
 networks:
   pediuber-net:
     driver: bridge
+
+  ridefleet-net:
+    external: true

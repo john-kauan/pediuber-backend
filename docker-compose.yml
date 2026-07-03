@@ -32,9 +32,12 @@ services:
       - postgres
       - rabbitmq
     environment:
+      environment:
       SPRING_PROFILES_ACTIVE: docker
       INSTANCE_ID: pediuber-backend-1
+      RIDEFLEET_GROUP_ID: "${RIDEFLEET_GROUP_ID:-pediuber}"
       RIDEFLEET_API_KEY: "${RIDEFLEET_API_KEY:-}"
+      RIDEFLEET_CORE_BASE_URL: "${RIDEFLEET_CORE_BASE_URL:-http://ridefleet-core:8080/api/v1}"
     expose:
       - "8080"
     restart: always
@@ -53,7 +56,9 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       INSTANCE_ID: pediuber-backend-2
+      IDEFLEET_GROUP_ID: "${RIDEFLEET_GROUP_ID:-pediuber}"
       RIDEFLEET_API_KEY: "${RIDEFLEET_API_KEY:-}"
+      RIDEFLEET_CORE_BASE_URL: "${RIDEFLEET_CORE_BASE_URL:-http://ridefleet-core:8080/api/v1}"
     expose:
       - "8080"
     restart: always
@@ -72,7 +77,9 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       INSTANCE_ID: pediuber-backend-3
+      RIDEFLEET_GROUP_ID: "${RIDEFLEET_GROUP_ID:-pediuber}"
       RIDEFLEET_API_KEY: "${RIDEFLEET_API_KEY:-}"
+      RIDEFLEET_CORE_BASE_URL: "${RIDEFLEET_CORE_BASE_URL:-http://ridefleet-core:8080/api/v1}"
     expose:
       - "8080"
     restart: always

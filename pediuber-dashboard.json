@@ -1,0 +1,213 @@
+{
+  "dashboard": {
+    "uid": "pediuber-semana5",
+    "title": "PediUber - Semana 5 - Observabilidade",
+    "tags": ["pediuber", "semana-5", "observabilidade"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "type": "stat",
+        "title": "Corridas locais",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(pediuber_rides_local_total{job=\"pediuber-backend\"})",
+            "legendFormat": "Locais"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "type": "stat",
+        "title": "Corridas delegadas para fora",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(pediuber_rides_delegated_out_total{job=\"pediuber-backend\"})",
+            "legendFormat": "Delegadas para fora"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 3,
+        "type": "stat",
+        "title": "Corridas recebidas por delegação",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(pediuber_rides_delegated_in_total{job=\"pediuber-backend\"})",
+            "legendFormat": "Recebidas"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 4,
+        "type": "stat",
+        "title": "Serviço disponível",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "min(pediuber_service_available{job=\"pediuber-backend\"})",
+            "legendFormat": "Disponível"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 5,
+        "type": "timeseries",
+        "title": "Tamanho das filas RabbitMQ",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+        "targets": [
+          {
+            "expr": "max(pediuber_queue_in_size{job=\"pediuber-backend\"})",
+            "legendFormat": "Fila entrada"
+          },
+          {
+            "expr": "max(pediuber_queue_out_size{job=\"pediuber-backend\"})",
+            "legendFormat": "Fila saída"
+          },
+          {
+            "expr": "max(pediuber_queue_in_dlq_size{job=\"pediuber-backend\"})",
+            "legendFormat": "DLQ entrada"
+          },
+          {
+            "expr": "max(pediuber_queue_out_dlq_size{job=\"pediuber-backend\"})",
+            "legendFormat": "DLQ saída"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "type": "bargauge",
+        "title": "Distribuição de carga entre instâncias",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+        "targets": [
+          {
+            "expr": "sum by (exported_instance) (pediuber_instance_requests_total{job=\"pediuber-backend\"})",
+            "legendFormat": "{{exported_instance}}"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "orientation": "horizontal",
+          "displayMode": "gradient",
+          "showUnfilled": true
+        }
+      },
+      {
+        "id": 7,
+        "type": "timeseries",
+        "title": "Throughput por instância",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+        "targets": [
+          {
+            "expr": "sum by (exported_instance) (rate(http_server_requests_seconds_count{job=\"pediuber-backend\"}[5m]))",
+            "legendFormat": "{{exported_instance}}"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "type": "timeseries",
+        "title": "Latência média por endpoint",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+        "targets": [
+          {
+            "expr": "sum by (uri) (rate(http_server_requests_seconds_sum{job=\"pediuber-backend\"}[5m])) / sum by (uri) (rate(http_server_requests_seconds_count{job=\"pediuber-backend\"}[5m]))",
+            "legendFormat": "{{uri}}"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "type": "stat",
+        "title": "Serviço congestionado",
+        "datasource": "Prometheus",
+        "gridPos": { "h": 5, "w": 6, "x": 0, "y": 21 },
+        "targets": [
+          {
+            "expr": "max(pediuber_service_congested{job=\"pediuber-backend\"})",
+            "legendFormat": "Congestionado"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

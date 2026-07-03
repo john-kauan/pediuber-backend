@@ -23,6 +23,7 @@ import com.pediuber.pediuber.core.service.CoreRideStatusService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import com.pediuber.pediuber.metrics.PediUberMetricsService;
 
 public class RideServiceTests {
 
@@ -38,6 +39,7 @@ public class RideServiceTests {
     private CoreRideStatusService coreRideStatusService;
     private CoreClient coreClient;
     private String groupId;
+    private PediUberMetricsService metricsService;
 
     @BeforeEach
     void setup() {
@@ -62,6 +64,8 @@ public class RideServiceTests {
 
         coreClient = Mockito.mock(CoreClient.class);
 
+        metricsService = Mockito.mock(PediUberMetricsService.class);
+
         groupId = "pediuber";
 
         rideService = new RideService(
@@ -75,8 +79,8 @@ public class RideServiceTests {
                 coreDelegationService,
                 coreRideStatusService,
                 coreClient,
+                metricsService,
                 groupId
-
         );
     }
 

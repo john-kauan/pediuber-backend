@@ -28,6 +28,7 @@ import com.pediuber.pediuber.dto.PassengerRideResponse;
 import org.springframework.beans.factory.annotation.Value;
 import com.pediuber.pediuber.dto.RideTrackingResponse;
 import com.pediuber.pediuber.dto.RideHistoryResponse;
+import com.pediuber.pediuber.metrics.PediUberMetricsService;
 import org.springframework.data.domain.Sort;
 import java.util.List;
 
@@ -44,6 +45,7 @@ public class RideService {
     private final CoreDelegationService coreDelegationService;
     private final CoreRideStatusService coreRideStatusService;
     private final CoreClient coreClient;
+    private final PediUberMetricsService metricsService;
     private final String groupId;
 
     public RideService(
@@ -57,6 +59,7 @@ public class RideService {
             CoreDelegationService coreDelegationService,
             CoreRideStatusService coreRideStatusService,
             CoreClient coreClient,
+            PediUberMetricsService metricsService,
             @Value("${ridefleet.group-id:pediuber}") String groupId
 
     ) {
@@ -70,6 +73,7 @@ public class RideService {
         this.coreDelegationService = coreDelegationService;
         this.coreRideStatusService = coreRideStatusService;
         this.coreClient = coreClient;
+        this.metricsService = metricsService;
         this.groupId = groupId;
     }
 
@@ -400,6 +404,8 @@ public class RideService {
                     )
             );
 
+            metricsService.incrementLocalRide();
+
             return new PassengerRideResponse(
                     savedRide.getId(),
                     savedRide.getCoreRideUuid(),
@@ -419,6 +425,8 @@ public class RideService {
                 10
         );
 
+        metricsService.incrementDelegatedOutRide();
+
         RideAccepted rideAccepted = coreClient.createRide(coreRequest);
 
         ride.setCoreRideUuid(rideAccepted.getRideUuid());
@@ -426,6 +434,7 @@ public class RideService {
         ride.setStatus(RideStatus.REQUESTED);
 
         Ride savedRide = rideRepository.save(ride);
+
 
         loggingService.warn(
                 new LogEvent(

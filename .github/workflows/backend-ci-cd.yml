@@ -10,9 +10,11 @@ name: Backend CI/CD - PediUber
     branches:
       - main
 
+  workflow_dispatch:
+
 jobs:
   build-and-tests:
-    name: Build e testes
+    name: Build e testes unitarios e contrato
     runs-on: ubuntu-latest
 
     defaults:
@@ -20,7 +22,7 @@ jobs:
         working-directory: pediuber
 
     steps:
-      - name: Baixar código
+      - name: Baixar codigo
         uses: actions/checkout@v4
 
       - name: Configurar Java 21
@@ -30,22 +32,79 @@ jobs:
           java-version: 21
           cache: maven
 
-      - name: Dar permissão ao Maven Wrapper
+      - name: Dar permissao ao Maven Wrapper
         run: chmod +x mvnw
 
-      - name: Rodar testes unitários e de contrato
+      - name: Rodar testes unitarios e de contrato
         run: ./mvnw test
 
-      - name: Gerar pacote da aplicação
+      - name: Gerar pacote da aplicacao
         run: ./mvnw package -DskipTests
+
+  integration-tests:
+    name: Testes de integracao com Postgres e RabbitMQ
+    runs-on: ubuntu-latest
+    needs: build-and-tests
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pediuber
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d pediuber"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    defaults:
+      run:
+        working-directory: pediuber
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Dar permissao ao Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Rodar testes com perfil CI
+        env:
+          SPRING_PROFILES_ACTIVE: ci
+          INSTANCE_ID: github-actions
+        run: ./mvnw test
 
   docker-build:
     name: Build da imagem Docker
     runs-on: ubuntu-latest
-    needs: build-and-tests
+    needs:
+      - build-and-tests
+      - integration-tests
 
     steps:
-      - name: Baixar código
+      - name: Baixar codigo
         uses: actions/checkout@v4
 
       - name: Build da imagem Docker do backend
@@ -59,12 +118,13 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Baixar código
+      - name: Baixar codigo
         uses: actions/checkout@v4
 
-      - name: Deploy automático simulado
+      - name: Deploy automatico simulado
         run: |
-          echo "Deploy automático iniciado na branch main"
-          echo "Imagem Docker validada: pediuber-backend"
-          echo "Em ambiente real, este job executaria docker compose pull/up no servidor"
+          echo "Deploy automatico iniciado na branch main"
+          echo "Build, testes unitarios, testes de contrato e testes de integracao passaram"
+          echo "Imagem Docker validada: pediuber-backend:ci"
+          echo "Em ambiente real, este job atualizaria o servidor com docker compose up -d --build"
           echo "Deploy finalizado com sucesso"

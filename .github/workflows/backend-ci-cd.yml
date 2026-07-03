@@ -111,20 +111,34 @@ jobs:
         run: docker build -t pediuber-backend:ci ./pediuber
 
   deploy:
-    name: Deploy automatizado
+    name: Deploy automatizado com Docker Compose
     runs-on: ubuntu-latest
     needs: docker-build
 
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Baixar codigo
         uses: actions/checkout@v4
 
-      - name: Deploy automatico simulado
-        run: |
-          echo "Deploy automatico iniciado na branch main"
-          echo "Build, testes unitarios, testes de contrato e testes de integracao passaram"
-          echo "Imagem Docker validada: pediuber-backend:ci"
-          echo "Em ambiente real, este job atualizaria o servidor com docker compose up -d --build"
-          echo "Deploy finalizado com sucesso"
+      - name: Criar rede externa usada pelo Core
+        run: docker network create ridefleet-net || true
+
+      - name: Subir ambiente com Docker Compose
+        run: docker compose up -d --build
+
+      - name: Aguardar inicializacao
+        run: sleep 45
+
+      - name: Ver containers
+        run: docker compose ps
+
+      - name: Testar health pelo load balancer
+        run: curl -f http://localhost:8082/actuator/health
+
+      - name: Testar endpoint Prometheus
+        run: curl -f http://localhost:8082/actuator/prometheus
+
+      - name: Derrubar ambiente apos validacao
+        if: always()
+        run: docker compose down
